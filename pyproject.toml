@@ -15,7 +15,7 @@ testpaths = ["tests"]
 
 
 [tool.poetry]
-name = "ideas-python-utils"
+name = "ideas-public-python-utils"
 version = "23.11.21"
 description = "Python utilities for tools in IDEAS"
 authors = ["Inscopix, Inc. <support@inscopix.com>"]

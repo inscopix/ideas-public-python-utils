@@ -1,5 +1,3 @@
-![coverage](coverage.svg)
-
 # IDEAS Python Utils
 
 This repository contains utilities and functions to help you
