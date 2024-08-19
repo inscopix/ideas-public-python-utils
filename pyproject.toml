@@ -1,0 +1,84 @@
+[tool.black]
+line-length = 79
+exclude = "setup.py"
+
+[tool.ruff]
+select = ["E", "F", "B"]
+ignore = ["E501"]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["E402"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = ["tests"]
+
+
+[tool.poetry]
+name = "ideas-python-utils"
+version = "23.11.21"
+description = "Python utilities for tools in IDEAS"
+authors = ["Inscopix, Inc. <support@inscopix.com>"]
+readme = "README.md"
+packages = [{include = "ideas"}]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.12"
+jsonschema = ">=4.17.3"
+beartype = "==0.15.0"
+jinja2 = ">=3.1.2"
+numpy = "1.26.4"
+configobj = ">=5.0.8"
+tabulate = ">=0.9.0"
+pyarrow = ">=13.0.0"
+figrid = ">=0.1.6"
+bokeh = ">=3.1.0"
+opencv-python = "==4.10.0.84"
+pandas = { version = ">=1.5.3", optional = true }
+scikit-image = { version = "^0.24.0", optional = true }
+scipy = { version = ">=1.10.1", optional = true }
+pytest = { version = ">=7.2.0", optional = true }
+interrogate = { version = ">=1.5.0", optional = true }
+coverage = { version = ">=7.2.1", optional = true }
+matplotlib = { version = "*", optional = true }
+ipykernel = { version = ">=6.20.1", optional = true }
+debugpy = { version = "1.6", optional = true }
+poetry2setup = { version = ">=1.1.0", optional = true }
+coverage-badge = { version = ">=1.1.0", optional = true }
+
+ideas-data = { git = "https://github.com/inscopix/ideas-data", rev = "2.0.0", optional = true }
+isx = { git = "https://github.com/inscopix/py_isx", rev = "main", optional = true }
+ideas-commons = { git = "https://github.com/inscopix/ideas-commons", rev = "1.19.0", optional = true }
+ideas_schemas = { git = "https://github.com/inscopix/ideas-schemas", rev = "python-wrapper", optional = true }
+
+[tool.poetry.extras]
+plotting = ["bokeh"]
+extras = ["scipy","scikit-image","pandas"]
+test = ["pytest","interrogate","coverage"]
+dev = ["ipykernel","debugpy","poetry2setup","coverage-badge"]
+plots = ["matplotlib"]
+test_isx = ["ideas-data","isx"]
+ideas_commons = ["ideas-commons"]
+ideas_schemas = ["ideas_schemas"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.interrogate]
+fail-under = 100
+exclude = ["setup.py", "docs", "build","tests"]
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-semiprivate = true
+ignore-private = true
+ignore-property-decorators = true
+ignore-module = true
+ignore-nested-functions = true
+ignore-nested-classes = true
+ignore-setters = false
+ignore-regex = ["^get$", "^mock_.*", ".*BaseClass.*"]
+color = true
+
