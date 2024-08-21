@@ -1,19 +1,19 @@
 from typing import Optional
 
-from ideas.data_model_v2 import (
-    Roi,
-    get_rois_from_json,
-    RectangleRoi,
-    EllipseRoi,
-    PolygonRoi,
-)
-
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.patches import Ellipse
+
+from ideas.rois import (
+    EllipseRoi,
+    PolygonRoi,
+    RectangleRoi,
+    Roi,
+    get_rois_from_json,
+)
 
 
 class Zone:
