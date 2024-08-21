@@ -1,9 +1,7 @@
 from enum import Enum
 
-import ideas_schemas
 import numpy as np
 from beartype.typing import List, Optional, Union
-from jsonschema import validate
 
 from ideas.utils import _hex_to_rgb
 
@@ -440,10 +438,6 @@ def get_rois_from_json(j: dict):
 
     :param j: The json object to convert.
     """
-
-    # validate roi input using predefined json schema
-    schema = ideas_schemas.get(name="tool_roi_frame_param_value")
-    validate(instance=j, schema=schema)
 
     rois = []
     for el in j:
