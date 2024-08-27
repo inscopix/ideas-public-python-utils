@@ -22,8 +22,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 # from matplotlib.ticker import FuncFormatter
 from scipy import ndimage
 
-from ideas import io, measures
-from ideas import tracking
+from ideas import io, measures, tracking
 from ideas.exceptions import IdeasError
 from ideas.types import NumpyFloat2DArray
 from ideas.utils import _find_coord_start, get_file_size
