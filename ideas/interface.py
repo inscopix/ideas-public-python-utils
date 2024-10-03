@@ -3,9 +3,13 @@ import json
 import logging
 import os
 
-from ideas.utils import split_tool_command
+from ideas.utils import _set_up_logger, split_tool_command
 
 logger = logging.getLogger(__name__)
+
+
+_set_up_logger()
+logger = logging.getLogger()
 
 
 def run_tool(tool_command: str, inputs_json_file: str = "inputs.json"):
