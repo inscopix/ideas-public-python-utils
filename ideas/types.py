@@ -1,14 +1,14 @@
 """this module defines some helper types that we can use 
 for type checking in other modules"""
 
-from typing import Annotated
+from typing import Annotated, TypeAlias
 
 import numpy as np
 
 from beartype.vale import IsAttr, IsEqual, IsSubclass
 
 
-type IdeasFile = str
+IdeasFile: TypeAlias = str
 
 # define a datatype for 2D numpy arrays of floats
 NumpyFloat2DArray = Annotated[
