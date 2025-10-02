@@ -7,6 +7,9 @@ import numpy as np
 
 from beartype.vale import IsAttr, IsEqual, IsSubclass
 
+
+type IdeasFile = str
+
 # define a datatype for 2D numpy arrays of floats
 NumpyFloat2DArray = Annotated[
     np.ndarray,
