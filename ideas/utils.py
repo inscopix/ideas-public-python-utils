@@ -53,11 +53,17 @@ def _find_coord_start(
 
     """
     max_poly_points = int(max_poly_points)
+    if max_poly_points < 0:
+        raise ValueError("max_poly_points must be a positive integer")
+
     if isinstance(row, pd.Series):
-        if pd.isnull(row[f"X {max_poly_points}"]):
+        try:
+            if pd.isnull(row[f"X {max_poly_points}"]):
+                return _find_coord_start(row, max_poly_points - 1)
+            else:
+                return int(max_poly_points)
+        except KeyError:
             return _find_coord_start(row, max_poly_points - 1)
-        else:
-            return int(max_poly_points)
     elif isinstance(row, dict):
         if f"X {max_poly_points}" not in row.keys():
             return _find_coord_start(row, max_poly_points - 1)
@@ -393,7 +399,10 @@ def sh_2_json(sh_file: str, json_file: str):
     config = ConfigObj(sh_file)
 
     for key in config.keys():
-        if config[key].startswith("[") and config[key].endswith("]"):
+        if isinstance(config[key], list):
+            continue
+
+        elif config[key].startswith("[") and config[key].endswith("]"):
             # this is a ToolFilePathParam
             config[key] = ast.literal_eval(config[key])
             continue

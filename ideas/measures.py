@@ -78,6 +78,7 @@ def matrix_exponential_gof(
     time: NumpyFloatVector,
     *,
     subsample: int = 100,
+    nan_policy: Optional[str] = None,
 ) -> (NumpyFloatVector, float):
     """
     fits decaying exponentials to row of a matrix, returning
@@ -88,6 +89,11 @@ def matrix_exponential_gof(
     - traces: matrix of cell traces
     - time: vector of time, as long as traces
     - subsample: integer to subsample data to speed up fits
+    - nan_policy: passed to underlying scipy.optimize.curve_fit function:
+        Defines how to handle when input contains nan. The following options are available (default is None):
+            - raise: throws an error
+            - omit: performs the calculations ignoring nan values
+            - None: no special handling of NaNs is performed
 
     ### Returns
 
@@ -113,7 +119,11 @@ def matrix_exponential_gof(
         try:
             # may get an error if scipy can't fit it
             params, _ = scipy.optimize.curve_fit(
-                exponential, time[::subsample], y[::subsample], bounds=bounds
+                exponential,
+                time[::subsample],
+                y[::subsample],
+                bounds=bounds,
+                nan_policy=nan_policy,
             )
         except RuntimeError:
             continue

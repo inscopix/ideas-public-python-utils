@@ -4,7 +4,6 @@ from typing import Literal
 
 import bokeh
 import cv2
-import figrid as fg
 import isx
 import matplotlib
 import matplotlib.pyplot as plt
@@ -16,7 +15,7 @@ from beartype import beartype
 from beartype.typing import List, Optional, Union
 from matplotlib import cm
 from matplotlib.collections import LineCollection
-from matplotlib.pyplot import matshow
+from matplotlib.colors import LinearSegmentedColormap
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # from matplotlib.ticker import FuncFormatter
@@ -77,7 +76,7 @@ def _find_zone_max(zones: pd.DataFrame):
             x_upper = max(x_upper, zone["X 0"] + zone[" Minor Axis"] / 2)
             y_upper = max(y_upper, zone["Y 0"] + zone["Major Axis"] / 2)
         elif zone["Type"] == "polygon" or zone["Type"] == "rectangle":
-            num_points = _find_coord_start(zone, (len(zone) - 9) / 2)
+            num_points = _find_coord_start(zone, len(zone) / 2) + 1
             for i in range(num_points):
                 x_upper = max(x_upper, zone[f"X {i}"])
                 y_upper = max(y_upper, zone[f"Y {i}"])
@@ -89,32 +88,69 @@ def plot_trajectory(
     *,
     ax: Optional[plt.Axes] = None,
     fig: Optional[plt.Figure] = None,
+    preview_filename: Optional[str] = None,
     trajectory_x,
     trajectory_y,
     traj_cmap="flare",
-    title: str = "Trajectory with Zones",
+    title: str = "Trajectory",
     x_label: str = "X (pixels)",
     y_label: str = "Y (pixels)",
+    hue: Optional[Union[np.array, pd.Series]] = None,
+    hue_label: str = "Frame Number",
+    norm_hue: bool = True,
     width: Optional[int] = None,
     height: Optional[int] = None,
+    invert_yaxis: bool = True,
+    output_format: str = "png",
 ):
-    """Generate a preview of the average keypoint trajectory colored by time."""
+    """Generate a preview of trajectory in a FOV extracted from a behavior movie.
+    The trajectory is colored by user-specified metadata, which by default is the frame number (i.e., time).
+
+    Parameters:
+    - ax: Optional matplotlib axes to use for plotting
+    - fig: Optional matplotlib figure to use for plotting
+    - preview_filename: Optional filename to save the plot as.
+    - trajectory_x: An array of x-coordinates for the trajectory.
+    - trajectory_y: An array of y-coordinates for the trajectory.
+    - traj_cmap: The colormap for the trajectory plot (default: "flare").
+    - title: The title of the plot (default: "Trajectory").
+    - x_label: The label for the x-axis (default: "X (pixels)").
+    - y_label: The label for the y-axis (default: "Y (pixels)").
+    - hue: Optional array of values to use for coloring the trajectory.
+        If empty, then default to the trajectory index, i.e., frame number or time
+    - hue_label: The label for the colorbar (default: "Frame Number")
+    - norm_hue: If true, the colorbar is normalized.
+        Helpful if the colorbar is heavily skewed on one end.
+    - width: Optional width to set for the plot.
+        Used to render the full FOV of the behavior movie.
+    - height: Optional height to set for the plot.
+        Used to render the full FOV of the behavior movie.
+    - invert_yaxis: If true, the y-axis is reflected. By default, the origin of matplotlib
+        plots is the top-left corner. However, most behavior movies have an origin in the
+        bottom-left corner, which is why the y-axis needs to be reflected.
+    - output_format: The format to save the plot as, either "png" (default) or "svg".
+    """
 
     if ax is None:
         figsize = _get_figsize(width, height, trajectory_x, trajectory_y)
         fig, ax = plt.subplots(1, 1, figsize=figsize)
 
     if width and height:
-        # show the full fov is dims are given
+        # show the full fov if dims are given
         plt.xlim(0, width)
-        plt.ylim(height, 0)
+        plt.ylim(0, height)
+
+    if hue is None:
+        hue = trajectory_x.index
 
     # this connects each point with a line that is colored by time
     points = np.array([trajectory_x, trajectory_y]).T.reshape(-1, 1, 2)
     segments = np.concatenate([points[:-1], points[1:]], axis=1)
-    norm = plt.Normalize(0, len(trajectory_x))
+    norm = None
+    if norm_hue:
+        norm = plt.Normalize(0, len(hue))
     lc = LineCollection(segments, cmap=traj_cmap, norm=norm)
-    lc.set_array(trajectory_x.index)
+    lc.set_array(hue)
     lc.set_linewidth(2)
     trajectory = ax.add_collection(lc)
 
@@ -123,7 +159,7 @@ def plot_trajectory(
         x=trajectory_x,
         y=trajectory_y,
         ax=ax,
-        hue=trajectory_x.index,
+        hue=hue,
         palette=traj_cmap,
         legend=False,
         size=1,
@@ -136,51 +172,75 @@ def plot_trajectory(
     fig.colorbar(
         trajectory,
         ax=ax,
-        label="Frame Number",
+        label=hue_label,
         cax=cbar_cax,
         orientation="vertical",
     )
-    # origin of dlc coordinates is top-left corner
-    # but origin for plot is bottom-left corner
-    # so reflect y axis
-    plt.gca().invert_yaxis()
+    # By default, the origin of matplotlib plots is the top-left corner.
+    # However, most behavior movies have an origin in the bottom-left corner,
+    # which is why the y-axis needs to be reflected.
+    if invert_yaxis:
+        ax.invert_yaxis()
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
     ax.set_title(title)
+
+    if preview_filename:
+        plt.savefig(
+            preview_filename,
+            format=output_format,
+            transparent=(output_format == "svg"),
+        )
 
     return ax
 
 
 def plot_trajectory_with_zones(
     *,
-    zones: pd.DataFrame,
-    preview_filename: str,
+    zones: Union[pd.DataFrame, List[tracking.Zone]],
+    preview_filename: Optional[str] = None,
     trajectory_x: np.array,
     trajectory_y: np.array,
+    traj_cmap: str = "flare",
     title: str = "Trajectory with Zones",
     x_label: str = "X (pixels)",
     y_label: str = "Y (pixels)",
+    hue: Optional[Union[np.array, pd.Series]] = None,
+    hue_label: str = "Frame Number",
+    norm_hue: bool = True,
     width: Optional[int] = None,
     height: Optional[int] = None,
-    traj_cmap: str = "flare",
+    invert_yaxis: bool = True,
     zone_cmap: str = "crest",
+    output_format: str = "png",
 ):
     """
     Plot the trajectory with zones.
 
     Parameters:
-    - zones: A pandas DataFrame containing zone information.
-    - preview_filename: The filename to save the plot as.
+    - zones: A pandas DataFrame, or list of zone objects, containing zone information.
+    - preview_filename: Optional filename to save the plot as.
     - trajectory_x: An array of x-coordinates for the trajectory.
     - trajectory_y: An array of y-coordinates for the trajectory.
+    - traj_cmap: The colormap for the trajectory plot (default: "flare").
     - title: The title of the plot (default: "Trajectory with Zones").
     - x_label: The label for the x-axis (default: "X (pixels)").
     - y_label: The label for the y-axis (default: "Y (pixels)").
-    - width: The width of the plot (optional).
-    - height: The height of the plot (optional).
-    - traj_cmap: The colormap for the trajectory plot (default: "flare").
+    - hue: Optional array of values to use for coloring the trajectory.
+        If empty, then default to the trajectory index, i.e., frame number or time
+    - hue_label: The label for the colorbar (default: "Frame Number")
+    - norm_hue: If true, the colorbar is normalized.
+        Helpful if the colorbar is heavily skewed on one end.
+    - width: Optional width to set for the plot.
+        Used to render the full FOV of the behavior movie.
+    - height: Optional height to set for the plot.
+        Used to render the full FOV of the behavior movie.
+    - invert_yaxis: If true, the y-axis is reflected. By default, the origin of matplotlib
+        plots is the top-left corner. However, most behavior movies have an origin in the
+        bottom-left corner, which is why the y-axis needs to be reflected.
     - zone_cmap: The colormap for the zone plot (default: "crest").
+    - output_format: The format to save the plot as, either "png" (default) or "svg".
     """
 
     if not width or not height:
@@ -196,7 +256,10 @@ def plot_trajectory_with_zones(
         height = y_upper * 1.1
 
     # Create zones object
-    z = tracking.read_zones_from_dict(zones)
+    if isinstance(zones, pd.DataFrame):
+        z = tracking.read_zones_from_dict(zones)
+    else:
+        z = zones
 
     # Plot the trajectory
     ax = plot_trajectory(
@@ -206,8 +269,12 @@ def plot_trajectory_with_zones(
         title=title,
         x_label=x_label,
         y_label=y_label,
+        hue=hue,
+        hue_label=hue_label,
+        norm_hue=norm_hue,
         width=width,
         height=height,
+        invert_yaxis=invert_yaxis,
     )
     # Draw the zones on the plot
     ax = tracking.plot_zones_on_ax(
@@ -219,23 +286,53 @@ def plot_trajectory_with_zones(
         y_label=y_label,
     )
 
-    plt.savefig(preview_filename)
+    if preview_filename:
+        plt.savefig(
+            preview_filename,
+            format=output_format,
+            transparent=(output_format == "svg"),
+        )
+
+    return ax
 
 
 @beartype
 def plot_correlation_matrix(
     ax: matplotlib.axes._axes.Axes,
     corr_matrix: NumpyFloat2DArray,
+    cmap="bwr",
+    output_format="png",
 ) -> None:
-    """
-    plots correlation matrix of raw traces
-    neurons are reordered so that weight in the
-    correlation matrix is concentrated along the diagonal
-    """
+    """Plot the correlation matrix of raw traces.
+    Neurons are reordered so that weight in the
+    correlation matrix is concentrated along the diagonal.
 
+    :param ax: Matplotlib axis to plot on.
+    :param corr_matrix: 2D numpy array representing the correlation matrix.
+    :param cmap: Colormap to use for the plot.
+    :param output_format: Plot format, either "png" (default) or "svg".
+    """
     plt.sca(ax)
 
-    matshow(corr_matrix, vmin=-1, vmax=1, cmap="bwr", fignum=0)
+    if output_format == "svg":
+        # Use pcolormesh for proper alignment in vector output
+        flipped_corr_matrix = corr_matrix[::-1, :]
+        num_cells = flipped_corr_matrix.shape[0]
+        x_edges = np.arange(num_cells)
+        y_edges = np.arange(num_cells)
+
+        ax.pcolormesh(
+            x_edges,
+            y_edges,
+            flipped_corr_matrix,
+            cmap=cmap,
+            vmin=-1,
+            vmax=1,
+            shading="nearest",
+        )
+    else:
+        # Default to matshow for raster-based output
+        ax.matshow(corr_matrix, vmin=-1, vmax=1, cmap=cmap)
 
 
 @beartype
@@ -245,6 +342,7 @@ def plot_footprints(
     figure,  # bokeh or matplotlib figure
     *,
     colors: Optional[List] = None,
+    edge_colors: Optional[List] = None,
     fill_alpha: float = 0.5,
     line_alpha: float = 0.5,
     legend_label: str = "footprints",
@@ -307,6 +405,11 @@ def plot_footprints(
             ranks = np.arange(0, N)
             colors = [cmap(r / N) for r in ranks]
 
+        if edge_colors is None:
+            edge_colors = colors
+            linewidth = 3
+        else:
+            linewidth = 1
         plt.sca(figure)
 
         for i in range(N):
@@ -316,7 +419,8 @@ def plot_footprints(
                 fill=True,
                 facecolor=colors[i],
                 alpha=0.5,
-                edgecolor=colors[i],
+                edgecolor=edge_colors[i],
+                linewidth=linewidth,
             )
 
     else:
@@ -418,7 +522,7 @@ def add_scalebar(
         y_buffer = -1 * (axis.get_ylim()[0] - axis.get_ylim()[1]) / 300
 
     # add the scalebar using figrid
-    fg.scalebar(
+    scalebar(
         axis=axis,
         x_pos=x_pos,
         y_pos=y_pos,
@@ -773,6 +877,130 @@ def arrange_axes_to_ordinal_values(d):
     return temp[idx, -1]
 
 
+def plot_shaded_hist(
+    values, ax, title, xlabel, palette="coolwarm", hist_lims=None, norm=None
+):
+    """
+    Plots a shaded histogram with a customizable diverging color palette.
+
+    Args:
+    values (array-like): The data values to be plotted in the histogram.
+    ax (matplotlib.axes.Axes): The axes object to plot the histogram on.
+    title (str): The title of the plot.
+    xlabel (str): The label for the x-axis.
+    palette (str or list, optional): The color palette to use for shading the histogram bars.
+                                     Default is "coolwarm".
+    hist_lims (tuple, optional): The limits for the x-axis of the histogram. Default is None.
+    norm (matplotlib.colors.Normalize, optional): The normalization for the color mapping. Default is None.
+
+    Returns:
+    cmap (matplotlib.colors.Colormap): The colormap used for shading the histogram bars.
+    norm (matplotlib.colors.Normalize): The normalization used for the color mapping.
+    """
+    if isinstance(palette, str):
+        # Interpret the palette as a colormap
+        try:
+            cmap = sns.color_palette(palette, as_cmap=True)
+        except ValueError:
+            IdeasError(
+                "Invalid palette. Please provide a valid colormap or a list of colors"
+            )
+    elif isinstance(palette, list):
+        cmap = LinearSegmentedColormap.from_list(name="test", colors=palette)
+
+    # Set the number of bins to 30 or the number of differences, whichever is smaller
+    bin_num = min(30, len(values))
+
+    # Plot the histogram of trace changes vertically
+    _, bins, patches = ax.hist(values, bins=bin_num)
+    bin_centers = 0.5 * (bins[:-1] + bins[1:])
+    bin_max = np.max(np.abs(bins))
+
+    # If no normalization is provided, normalize the colormap to the maximum bin value
+    if norm is None:
+        norm = plt.Normalize(-bin_max, bin_max)
+
+    # Overwrite the face color of each patch with the colormap
+    for c, p in zip(bin_centers, patches):
+        plt.setp(p, "facecolor", cmap(norm(c)))
+
+    # Set the x-axis limits
+    if hist_lims is not None:
+        ax.set_xlim(hist_lims)
+    else:
+        ax.set_xlim([-bin_max, bin_max])
+
+    ax.axvline(0, color="black", label="Zero")
+    # add lines median
+    ax.axvline(np.median(values), color="black", linestyle=":", label="Median")
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Count")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    # Add just the vlines as a legend
+    ax.legend(
+        loc="upper right",
+        handles=[
+            plt.Line2D([0], [0], color="black", lw=2, label="Zero"),
+            plt.Line2D(
+                [0],
+                [0],
+                color="black",
+                lw=2,
+                linestyle=":",
+                label="Median",
+            ),
+        ],
+        frameon=False,
+    )
+    return cmap, norm
+
+
+def plot_paired_lines(
+    *,
+    ax: plt.Axes,
+    df: pd.DataFrame,
+    category_names: List[str],
+    num_values: int,
+    category_column: str = "Epoch",
+    value_column: str = "Activity",
+    line_color: str = "grey",
+    line_alpha: float = 0.07,
+):
+    """Plots lines connecting the values in a dataframe between categories.
+
+
+    - ax (plt.Axes): Axes object to plot on.
+    - df (pd.DataFrame): DataFrame containing the data.
+    - category_names (List[str]): List of category names to plot.
+    - num_values (int): Number of values to plot.
+    - category_column (str, optional): Column name for categories. Default is "Epoch".
+    - value_column (str, optional): Column name for values. Default is "Activity".
+    - line_color (str, optional): Color of the lines. Default is "grey".
+    - line_alpha (float, optional): Alpha value for line transparency. Default is 0.07.
+    """
+    # Iterate over the categories
+    for i in range(len(category_names) - 1):
+        # get the data for each category
+        full_category_1 = df[df[category_column] == category_names[i]][
+            value_column
+        ]
+        full_category_2 = df[df[category_column] == category_names[i + 1]][
+            value_column
+        ]
+
+        # Plot a line for each value
+        for j in range(num_values):
+            ax.plot(
+                [i, i + 1],
+                [full_category_1.values[j], full_category_2.values[j]],
+                color=line_color,
+                alpha=line_alpha,
+            )
+
+
 class EventSetPreview(object):
     """Class for generating eventset preview.
     This class is responsible for generating a preview from an eventset file.
@@ -933,26 +1161,23 @@ class EventSetPreview(object):
         with plt.style.context(self.background_color):
             if np.sum(rasters.ravel()) > 0:
                 # Raster plot
+                # show as heatmap image instead of event plot in order to reduce preview file size
                 num_cells = rasters.shape[0]
-                for i in range(num_cells):
-                    ind = np.where(rasters[i, :] == 1)[0]
-                    if len(ind) > 0:
-                        ax[0].plot(
-                            t[ind],
-                            i * np.ones(len(ind)),
-                            color=self.foreground_color,
-                            ls="",
-                            marker=".",
-                            markersize=self.markersize,
-                        )
+                rasters_img = np.zeros((num_cells, self.num_samples))
+                for idx in range(num_cells):
+                    offsets = np.where(rasters[idx, :] == 1)[0]
+                    rasters_img[idx, offsets] = 1
+                ax[0].imshow(
+                    rasters_img,
+                    aspect="auto",
+                    interpolation="none",
+                    origin="lower",
+                    cmap="gray",
+                    extent=(t[0], t[-1], -0.5, num_cells - 0.5),
+                )
                 ax[0].set_xlabel("Time (s)", fontsize=self.axis_label_fontsize)
                 ax[0].set_ylabel("Cell #", fontsize=self.axis_label_fontsize)
-                ax[0].set_yticks(
-                    np.linspace(0, num_cells - 1, 5).astype(int),
-                    np.linspace(0, num_cells - 1, 5).astype(int),
-                )
-                ax[0].set_ylim((-1, num_cells))
-                ax[0].set_xlim((t[0] - t[1], int(t[-1]) + 1))
+                ax[0].set_yticks(np.linspace(0, num_cells - 1, 5).astype(int))
 
                 # Displaying the average event rate across neurons
                 mean_event_rate_across_neurons = (
@@ -1046,3 +1271,64 @@ class EventSetPreview(object):
 
             # Saving the preview
             plt.savefig(self.output_png_filepath, dpi=300)
+
+
+# Function from figrid (https://github.com/dougollerenshaw/figrid). Copied here to avoid dependency on figrid
+
+
+def scalebar(
+    axis,
+    x_pos,
+    y_pos,
+    x_length=None,
+    y_length=None,
+    x_text=None,
+    y_text=None,
+    x_buffer=0.25,
+    y_buffer=0.25,
+    scalebar_color="black",
+    text_color="black",
+    fontsize=10,
+    linewidth=3,
+):
+    """
+    add a scalebar
+    input params:
+        axis: axis on which to add scalebar
+        x_pos: x position, in pixels
+        y_pos: y position, in pixels
+    """
+    if x_length is not None:
+        axis.plot(
+            [x_pos, x_pos + x_length],
+            [y_pos, y_pos],
+            color=scalebar_color,
+            linewidth=linewidth,
+        )
+        axis.text(
+            x_pos + x_length / 2,
+            y_pos - y_buffer,
+            x_text,
+            color=text_color,
+            fontsize=fontsize,
+            ha="center",
+            va="top",
+        )
+
+    if y_length is not None:
+        axis.plot(
+            [x_pos, x_pos],
+            [y_pos, y_pos + y_length],
+            color=scalebar_color,
+            linewidth=linewidth,
+        )
+
+        axis.text(
+            x_pos - x_buffer,
+            y_pos + y_length / 2,
+            y_text,
+            color=text_color,
+            fontsize=fontsize,
+            ha="right",
+            va="center",
+        )

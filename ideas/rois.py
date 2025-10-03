@@ -20,6 +20,7 @@ class Roi:
         ellipse = "ellipse"
         polygon = "polygon"
         contour = "contour"
+        line = "line"
 
     def __init__(
         self,
@@ -362,6 +363,60 @@ class ContourRoi(Roi):
         return f"Contour(group_key={self.group_key},name={self.name},stroke={self.stroke},points={self.points},closed={self.closed})"
 
 
+class LineRoi(Roi):
+    "An roi with a line shape."
+
+    def __init__(
+        self,
+        group_key: str,
+        name: str,
+        stroke: Union[str, tuple],
+        points: List[tuple],
+    ):
+        """Create instance of line roi.
+
+        :param group_key: The key of the group that the roi belongs to.
+        :param name: The name of the roi given by the user.
+        :param stroke: The color of the roi given by the user.
+        :param points: The points of the line.
+        """
+
+        Roi.__init__(
+            self,
+            shape_type=Roi.ShapeType.line,
+            group_key=group_key,
+            name=name,
+            stroke=stroke,
+        )
+        self.points = points
+
+    @classmethod
+    def from_json(cls, j: dict):
+        """Create a line roi from a json object.
+
+        :param j: The roi input serialized as json.
+        """
+        if Roi.ShapeType(j["type"]) != Roi.ShapeType.line:
+            raise ValueError("Unexpected shape type for roi input")
+
+        return cls(
+            j["groupKey"],
+            j["name"],
+            j["stroke"],
+            [(p["x"], p["y"]) for p in j["points"]],
+        )
+
+    def __eq__(self, other):
+        """Determine if two line rois are equal."""
+        return Roi.__eq__(self, other) and np.allclose(
+            self.points, other.points
+        )
+
+    def __str__(self):
+        """Create str representation of line roi."""
+        return f"Line(group_key={self.group_key},name={self.name},stroke={self.stroke},points={self.points})"
+
+
 class BoundingBoxRoi(Roi):
     """An roi for a bounding box.
 
@@ -450,6 +505,8 @@ def get_rois_from_json(j: dict):
             rois.append(EllipseRoi.from_json(el))
         elif shape_type == Roi.ShapeType.contour:
             rois.append(ContourRoi.from_json(el))
+        elif shape_type == Roi.ShapeType.line:
+            rois.append(LineRoi.from_json(el))
         elif shape_type == Roi.ShapeType.bounding_box:
             rois.append(BoundingBoxRoi.from_json(el))
     return rois
