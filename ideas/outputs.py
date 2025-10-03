@@ -1,12 +1,25 @@
 from dataclasses import dataclass, field
 import json
-from typing import TypeVar, List
+from typing import TypeVar, List, Optional
 import os
 
 OUTPUT_DATA_JSON_FILENAME = "output_data.json"
 OUTPUT_DATA_SCHEMA_VERSION = "1.0.0"
 
 Tag = TypeVar("Tag", bound=str)
+
+def _resolve_output_file_path(output_file: str):
+    if not os.path.exists(output_file):
+        raise Exception(f"Failed to find output file while writing output data: {output_file}")
+    
+    output_dir = os.getcwd()
+    if os.path.isabs(output_file):
+        if output_file.startswith(output_dir):
+            return os.path.basename(output_file)
+        else:
+            raise Exception("Output file is an absolute path outside of the cwd, this is currently not supported.")
+    
+    return output_file
 
 @dataclass
 class Preview:
@@ -74,7 +87,7 @@ class OutputFile:
     def add_preview(self, file: str, caption: str):
         self.previews.append(
             Preview(
-                file=file,
+                file=_resolve_output_file_path(file),
                 caption=caption
             )
         )
@@ -115,6 +128,7 @@ class OutputData:
             "schema_version": OUTPUT_DATA_SCHEMA_VERSION,
             "output_files": [f.to_dict() for f in self.output_files]
         }
+        print(f"writing output data: {json.dumps(output_data, indent=4)}")
         with open(self.filename, "w") as file:
             json.dump(output_data, file, indent=4)
 
@@ -127,12 +141,17 @@ class OutputData:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
-    def add_file(self, file: str, previews: List[Preview] = [], metadata: List[Metadata] = [], tags: List[Tag] = []):
+    @property
+    def output_dir(self):
+        return os.getcwd()
+
+    def add_file(self, file: str, previews: Optional[List[Preview]] = None, metadata: Optional[List[Metadata]] = None, tags: Optional[List[Tag]] = None):
         output_file = OutputFile(
-            file=file,
-            previews=previews,
-            metadata=metadata,
-            tags=tags
+            file=_resolve_output_file_path(file),
+            previews=previews if previews else [],
+            metadata=metadata if metadata else [],
+            tags=tags if tags else []
         )
         self.output_files.append(output_file)
+        print("add output file", output_file, id(output_file))
         return output_file
