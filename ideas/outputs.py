@@ -115,7 +115,6 @@ class OutputData:
         self.append = append
     
     def open(self):
-        print(f"open output data: {os.path.exists(self.filename)}")
         if self.append and os.path.exists(self.filename):
             with open(self.filename, "r") as file:
                 output_data = json.load(file)
@@ -128,11 +127,9 @@ class OutputData:
             "schema_version": OUTPUT_DATA_SCHEMA_VERSION,
             "output_files": [f.to_dict() for f in self.output_files]
         }
-        print(f"writing output data: {json.dumps(output_data, indent=4)}")
         with open(self.filename, "w") as file:
             json.dump(output_data, file, indent=4)
 
-        print(f"close output data: {os.path.exists(self.filename)}\n{output_data}")
     
     def __enter__(self):
         self.open()
@@ -153,5 +150,4 @@ class OutputData:
             tags=tags if tags else []
         )
         self.output_files.append(output_file)
-        print("add output file", output_file, id(output_file))
         return output_file
